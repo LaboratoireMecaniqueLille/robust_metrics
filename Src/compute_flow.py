@@ -101,6 +101,32 @@ def compute_flow(Im1, Im2, u, v, iter_gnc, gnc_pyram_levels, gnc_factor,
                 h, coef, max_linear_iter, max_iter, metric,Mask,sigma):
     '''
     Function to compute the optical flow field
+    Im1: array
+        Reference image
+    Im2: array
+        deformed image
+    u: array
+        The horizontal displacement
+    v: array
+        The values of the vertical displacement
+    h: array
+        derivation kernel 
+    coef: float
+        Weight for the derivatives computation
+    Returns:
+    Ix: array
+        x-derivative      
+    Iy: array
+        y-derivative     
+    It: array
+        Temporal derivative
+    alpha: float
+        The weight of the quadratic formulation in the GNC process
+    mask: array
+        regularization mask 
+    sigma: float   
+        parameter of the Lorentzian
+ 
     '''
     P1, P2 = compute_image_pyram(
         Im1, Im2, 1/factor, pyram_levels, math.sqrt(spacing)/math.sqrt(2))

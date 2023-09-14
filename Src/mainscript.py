@@ -48,6 +48,7 @@ if __name__ == "__main__":
     # Metric to be used
     #metric = 'charbonnier'
     metric = 'lorentz'
+    #sigma=None
     sigma=0.05 #The parameter of Lorentz
     # Compute number of params
     pyram_levels = ri.compute_auto_pyramd_levels(Im1,spacing) #Automatic detection of the number of levels

@@ -9,6 +9,21 @@ import new_fo as fo
 def warp_image2(Im, xx, yy, h):
     '''
     Function to warp the second image and its derivatives
+        Im: array
+            The array to be warped
+        xx: array
+            x coordiantes
+        yy: array
+            y coordiantes
+        h: array
+            derivation kernel 
+    Returns:
+        WImage: array
+            Warped image
+        Ix: array
+            Warped x derivative
+        Iy: array
+            Warped xy derivative
     '''
     # We add the flow estimated to the second image coordinates, remap them towards the ogriginal image  and finally  calculate the derivatives of the warped image
     Im = np.array(Im, np.float32)
@@ -27,9 +42,28 @@ def warp_image2(Im, xx, yy, h):
     WImage = np.array(WImage, dtype=np.float32)
     return [WImage, Ix, Iy]
 
-def derivatives(Image1, Image2, u, v, h, b):
+def derivatives(Image1, Image2, u, v, h, coef):
     '''
     Compute the derivatives 
+        Image1: array
+            Reference image
+        Image2: array
+            deformed image
+        u: array
+            The horizontal displacement
+        v: array
+            The values of the vertical displacement
+        h: array
+            derivation kernel 
+        coef: float
+            Weight for the derivatives computation
+    Returns:
+        Ix: array
+            x-derivative      
+        Iy: array
+            y-derivative     
+        It: array
+            Temporal derivative            
     '''
     N, M = Image1.shape
     y = np.linspace(0, N-1, N)
@@ -45,8 +79,8 @@ def derivatives(Image1, Image2, u, v, h, b):
     Ix = filter2(Image1, h)  # spatial derivatives for the first image
     Iy = filter2(Image1, h.T)
 
-    Ix = b*I2x+(1-b)*Ix           # Averaging
-    Iy = b*I2y+(1-b)*Iy
+    Ix = coef*I2x+(1-coef)*Ix           # Averaging
+    Iy = coef*I2y+(1-coef)*Iy
 
     It = np.nan_to_num(It)  # Remove Nan values on the derivatives
     Ix = np.nan_to_num(Ix)
@@ -61,42 +95,49 @@ def derivatives(Image1, Image2, u, v, h, b):
 def compute_flow_base(Image1, Image2, max_iter, max_linear_iter, u, v, alpha, lmbda, size_median_filter, h, coef, mask, metric,sigma):
     '''
     Basic function to compute the displacement at each level of the pyramid
-    Image1: array
-        Reference image
-    Image1: array
-        deformed image
-    max_iter: int
-        number of iterations
-    max_linear_iter: int
-        number of linearisation iterations
-    u: array
-        Initial values of the horizontal displacement
-    v: array
-        Initial values of the vertical displacement
-    alpha: float
-        weight of the GNC
-    lmbda: float
-        Tikhonov parameter
-    size_median_filter: int
-        size of the median filter
-    h: array
-        derivation kernel 
-    coef: float
-        Weight for the derivatives computation
-    mask: array 
-        Tikhonov regularization mask
-    metric: string 
-        The chosen metric 'charbonnier' or 'lorentz'
-    sigma: float
-        parameter of the Lorentzian
+        Image1: array
+            Reference image
+        Image1: array
+            deformed image
+        max_iter: int
+            number of iterations
+        max_linear_iter: int
+            number of linearisation iterations
+        u: array
+            Initial values of the horizontal displacement
+        v: array
+            Initial values of the vertical displacement
+        alpha: float
+            weight of the GNC
+        lmbda: float
+            Tikhonov parameter
+        size_median_filter: int
+            size of the median filter
+        h: array
+            derivation kernel 
+        coef: float
+            Weight for the derivatives computation
+        mask: array 
+            Tikhonov regularization mask
+        metric: string 
+            The chosen metric 'charbonnier' or 'lorentz'
+        sigma: float
+            parameter of the Lorentzian
     Returns: 
-    u: array
-        Initial values of the horizontal displacement
-    v: array
-        Initial values of the vertical displacement
+        u: array
+            Initial values of the horizontal displacement
+        v: array
+            Initial values of the vertical displacement
     '''
     N, M = u.shape
     npixels = N*M
+    if metric=='lorentz' and sigma ==None:
+        #print('Sigma Lorentz parameter must be defined')
+        raise ValueError('Sigma Lorentz parameter must be defined')
+    if lmbda<=0 :
+        raise ValueError('lmbda must be >0')
+    if metric!='lorentz' or metric!='charbonnier':
+        raise ValueError('Undefined metric')
     for i in range(max_iter):
         print('it warping', i)
         du = np.zeros((u.shape))

@@ -1,8 +1,6 @@
 import numpy as np
 import cupy as cp
-from cupyx.scipy.ndimage import convolve1d, laplace
-from cupyx.scipy.sparse.linalg import LinearOperator
-import rescale_img as ri
+from cupyx.scipy.ndimage import convolve1d
 
 def deriv_charbonnier_over_x(x, sigma, a):
     y = 2*a*(sigma**2 + x**2)**(a-1)
@@ -25,6 +23,37 @@ deriv_quadra_over_x_vec_cp = cp.vectorize(deriv_quadra_over_x)
 deriv_lorentz_over_x_vec_cp = cp.vectorize(deriv_lorentz_over_x)
 
 def flow_matrix_base(u, v, du, dv, vector, N, M, lmbda, metric,mask,sigma):
+    '''
+    This function apply  the product marix vector of optical flow without storing the matrix for the
+    smoothness term
+    Params:
+        u: array 
+            horizontal displacement
+        v: array 
+            vertical displacement
+        du: array 
+            horizontal increment
+        dv: array 
+            vertical increment
+        vector: array
+            a given vector
+        N: int 
+            Number of rows
+        M: int 
+            Number of columns
+        lmbda: float
+            Tikhonov parameter
+        metric: string
+            The chosen metric
+        mask: array
+            regularization mask 
+        sigma: float   
+            parameter of the Lorentzian
+    Returns:
+        res: array
+            The product matrix x vector
+    '''
+
     if metric=='lorentz' and sigma ==None:
         print('Sigma Lorentz parameter must be defined')
     if isinstance(mask,np.ndarray):
@@ -63,6 +92,43 @@ def flow_matrix_base(u, v, du, dv, vector, N, M, lmbda, metric,mask,sigma):
     return res
 
 def flow_matrix(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric,mask,sigma):
+    '''
+    This function apply  the product marix vector of optical flow without storing the matrix 
+    we take into account in this function the data part related to the gray value constancy 
+    Params:
+        u: array 
+            horizontal displacement
+        v: array 
+            vertical displacement
+        du: array 
+            horizontal increment
+        dv: array 
+            vertical increment
+        vector: array
+            a given vector
+        N: int 
+            Number of rows
+        M: int 
+            Number of columns
+        Ix: array
+            x derivative
+        Iy: array
+            y derivative
+        It: array
+            temporal derivative
+        lmbda: float
+            Tikhonov parameter
+        metric: string
+            The chosen metric
+        mask: array
+            regularization mask 
+        sigma: float   
+            parameter of the Lorentzian
+    Returns:
+        res: array
+            The product matrix x vector
+    '''
+
     if metric=='lorentz' and sigma ==None:
         print('Sigma Lorentz parameter must be defined')
     npixels = N*M
@@ -73,8 +139,6 @@ def flow_matrix(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric,mask,sigma
         #pp_d =deriv_quadra_over_x_vec_cp(It+Ix*du+Iy*dv, 1)
         pp_d =deriv_quadra_over_x_vec_cp(It+Ix*du+Iy*dv, 0.001)
     elif metric == 'charbonnier':
-        '''Msk=mask*lmbda
-        Msk[mask<0.5]=0.1'''
         pp_d = deriv_charbonnier_over_x_vec_cp(It+Ix*du+Iy*dv, 0.001, 0.5)
         #pp_d = deriv_charbonnier_over_x_vec_cp(It+Ix*du+Iy*dv, 0.001, mask)
     elif metric == 'lorentz':
@@ -88,8 +152,39 @@ def flow_matrix(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric,mask,sigma
     return res
 
 def right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric,mask,sigma):
+    '''
+    This function create the right hand term for the system 
+    to be solved for a given metric 
+    Params:
+        Ix: array
+            x derivative
+        Iy: array
+            y derivative
+        It: array
+            temporal derivative
+        u: array 
+            horizontal displacement
+        v: array 
+            vertical displacement
+        du: array 
+            horizontal increment
+        dv: array 
+            vertical increment
+        lmbda: float
+            Tikhonov parameter
+        metric: string
+            The chosen metric
+        mask: array
+            regularization mask 
+        sigma: float   
+            parameter of the Lorentzian
+    Returns:
+        res: array
+            The product matrix x vector
+    '''
     if metric=='lorentz' and sigma ==None:
-        print('Sigma Lorentz parameter must be defined')
+        #print('Sigma Lorentz parameter must be defined')
+        raise ValueError('Sigma Lorentz parameter must be defined')
     N, M = Ix.shape
     npixels = N*M
     vector = cp.zeros((2*npixels,), dtype=np.float32)
@@ -102,17 +197,45 @@ def right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric,mask,sigma):
         #pp_d = deriv_quadra_over_x_vec_cp(It+Ix*du+Iy*dv, 1)
         pp_d = deriv_quadra_over_x_vec_cp(It+Ix*du+Iy*dv, 0.001)
     elif metric == 'lorentz':
-        #sigma=0.05
-        #sigma=1
-        #sigma=20
-        #sigma=mask
-        #sigma=0.1
         pp_d = deriv_lorentz_over_x_vec_cp(It+Ix*du+Iy*dv, sigma)
     b[:npixels] = b[:npixels]-cp.reshape(pp_d*It*Ix, (npixels), 'F')
     b[npixels:2*npixels] = b[npixels:2*npixels] - cp.reshape(pp_d*It*Iy, (npixels), 'F')
     return b
 
 def flow_final_right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric, alpha,mask,sigma):
+    '''
+    This function create the right hand term for the system 
+    to be solved
+    we take into account in this function the GNC Structure
+    Params:  
+        Ix: array
+            x derivative
+        Iy: array
+            y derivative
+        It: array
+            temporal derivative
+        u: array 
+            horizontal displacement
+        v: array 
+            vertical displacement
+        du: array 
+            horizontal increment
+        dv: array 
+            vertical increment
+        lmbda: float
+            Tikhonov parameter
+        metric: string
+            The chosen metric
+        alpha: float
+            The weight of the quadratic formulation in the GNC process
+        mask: array
+            regularization mask 
+        sigma: float   
+            parameter of the Lorentzian
+    Returns:
+        res: array
+            The product matrix x vector
+    '''
     if alpha == 1:
         # bn=right_hand_term(Ix,Iy,It,u,v,du,dv,lmbda,metric)
         b = right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, 'quadratique',mask,None)
@@ -126,6 +249,44 @@ def flow_final_right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric, alpha,ma
     return b
 
 def flow_matrix_final(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric, alpha,mask,sigma):
+    '''
+    This function apply  the product marix vector of optical flow without storing the matrix 
+    we take into account in this function the GNC Structure  
+    Params:
+        u: array 
+            horizontal displacement
+        v: array 
+            vertical displacement
+        du: array 
+            horizontal increment
+        dv: array 
+            vertical increment
+        vector: array
+            a given vector
+        N: int 
+            Number of rows
+        M: int 
+            Number of columns
+        Ix: array
+            x derivative
+        Iy: array
+            y derivative
+        It: array
+            temporal derivative
+        lmbda: float
+            Tikhonov parameter
+        metric: string
+            The chosen metric
+        alpha: float
+            The weight of the quadratic formulation in the GNC process
+        mask: array
+            regularization mask 
+        sigma: float   
+            parameter of the Lorentzian
+    Returns:
+        res: array
+            The product matrix x vector
+    '''
     if alpha == 1:
         res = flow_matrix(u, v, du, dv, vector, N, M, Ix,
                           Iy, It, lmbda, 'quadratique',mask,None)
@@ -137,39 +298,3 @@ def flow_matrix_final(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric, alp
         resc = flow_matrix(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric,mask,sigma)
         res = alpha*resq+(1-alpha)*resc
     return res
-
-if __name__ == "__main__":
-    N = 4
-    M = 4
-    lmbda = 2
-    sigma_qua = 2
-    # metric='charbonnier'
-    metric = 'lorentz'
-    sigma=0.04
-    alpha = 0.5
-    u = cp.round(10*np.random.rand(N, M))
-    u = u.astype(np.float32)
-    v = cp.round(10*np.random.rand(N, M))
-    v = v.astype(np.float32)
-    Ix = cp.round(10*np.random.rand(N, M))
-    # Ix = cp.ones((N, M))
-    Ix = Ix.astype(np.float32)
-    Iy = cp.round(10*np.random.rand(N, M))
-    #Iy = cp.ones((N, M))
-    Iy = Iy.astype(np.float32)
-    It = cp.round(10*np.random.rand(N, M))
-    # It = cp.ones((N, M))
-    It = It.astype(np.float32)
-    du = cp.zeros_like(u)
-    dv = cp.zeros_like(u)
-    vector = cp.random.rand(2*N*M,)
-    vector = vector.astype(np.float32)
-    res = flow_matrix(u, v, du, dv, vector, N, M, Ix, Iy, lmbda, metric,sigma)
-    b1 = right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric,sigma)
-    print('bres\n', b1)
-    bf = flow_final_right_hand_term(
-        Ix, Iy, It, u, v, du, dv, lmbda, metric, alpha)
-    print('bf', bf)
-    res = flow_matrix_final(u, v, du, dv, vector, N, M,
-                            Ix, Iy, lmbda, metric, alpha)
-    print('res\n', res)

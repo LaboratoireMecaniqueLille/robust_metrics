@@ -11,7 +11,21 @@ from scipy.ndimage import median_filter
 import scipy.sparse as sparse
 import math
 from scipy.ndimage import correlate
+
 def scale_image(Image,vlow,vhigh):
+    '''
+    Keep the values of Image in[vlow,vhigh]
+    Params:
+        Image: array
+            The image
+        vlow: float
+            lower value
+        vhigh: float
+            higher value
+    Return:
+        imo: array
+            image with values between vlow and vhigh
+    '''
     ilow= np.min(Image)
     ihigh= np.max(Image)
     if ilow==ihigh:
@@ -20,6 +34,29 @@ def scale_image(Image,vlow,vhigh):
     return  imo
 
 def decompo_texture(im, theta, nIters, alp, isScale):
+    '''
+    Perform the decomposition texture structure
+    for the definition of the parameters please refer
+    to the the paper of Wedel
+    Params:
+        im: array
+            The image
+        theta: float
+            parameter of the algorithm
+        nIters: int
+            Number of iterations
+        vhigh: float
+            higher value
+        alp: float
+            parameter of the algorithm
+        isScale: bool
+            to rescale the image using scale_image
+    Return:
+        texture: array
+            the texture part of im
+        structure: array
+            the structure part of im
+    '''
     IM   = scale_image(im, -1,1)
     im= np.copy(IM)
 
@@ -64,11 +101,22 @@ def decompo_texture(im, theta, nIters, alp, isScale):
     return [texture, structure]
 
 def compute_auto_pyramd_levels(Im,spacing):
+    '''
+    Determine dynamically the number of parameters 
+    using the Im shape
+    Params:
+        Im: array
+            the image
+        spacing: float
+            the downsampling factor of the pyramid
+    Returns: 
+        pyramid_levels: int
+            number of levels
+    '''
     N1 = 1 + math.floor( math.log(max(Im.shape[0], Im.shape[1])/16)/math.log(spacing) )
     #smaller size shouldn't be less than 6
     N2 = 1 + math.floor( math.log(min(Im.shape[0], Im.shape[1])/6)/math.log(spacing) )
     pyramid_levels  =  min(N1, N2)
-    
     '''if this.old_auto_level
         this.pyramid_levels  =  1 + floor( log(min(size(images, 1),...
             size(images,2))/16) / log(this.pyramid_spacing) );'''
