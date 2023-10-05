@@ -136,7 +136,7 @@ def compute_flow_base(Image1, Image2, max_iter, max_linear_iter, u, v, alpha, lm
         raise ValueError('Sigma Lorentz parameter must be defined')
     if lmbda<=0 :
         raise ValueError('lmbda must be >0')
-    if metric!='lorentz' or metric!='charbonnier':
+    if metric!='lorentz' and metric!='charbonnier':
         raise ValueError('Undefined metric')
     for i in range(max_iter):
         print('it warping', i)
