@@ -14,4 +14,7 @@ This code is GPU-accelerated and requires the following Python modules for its o
 -OpenCV  
 -matplotlib  
 -scipy  
+
+The code was tested on an NVIDIA GPU with a computing capacity >3, CUDA toolkit version >11.2, and a Python version >3.9
+
 To initiate the computations, it is necessary to simply modify the parameters in the file **/Src/mainscript**  and execute the command **./mainscript**   
