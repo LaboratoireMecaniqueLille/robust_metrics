@@ -1,9 +1,18 @@
 # coding: utf-8
 
 import math
-import cupy as np
-from cupyx.scipy.ndimage import  gaussian_filter
-from cucim.skimage.transform import resize
+import cupy as cp
+import numpy as np
+try:
+    from cupyx.scipy.ndimage import gaussian_filter as gaussian_filter_gpu
+except Exception:
+    gaussian_filter_gpu = None
+from scipy.ndimage import gaussian_filter as gaussian_filter_cpu
+try:
+    from cucim.skimage.transform import resize as resize_gpu
+except Exception:
+    resize_gpu = None
+from skimage.transform import resize as resize_cpu
 
 from . import flow_operator as fo
 from . import rescale_img as ri
@@ -22,12 +31,21 @@ def compute_image_pyram_mask(Im1, ratio, N_levels):
     P1: a list
         Pyramid of mask
     '''
+    
+    xp = cp.get_array_module(Im1)
+    if xp is np:
+        gaussian_filter = gaussian_filter_cpu
+        resize = resize_cpu
+    else:
+        gaussian_filter = gaussian_filter_gpu
+        resize = resize_gpu
+    
     P1 = []
     tmp1 = Im1
     P1.append(tmp1)
 
     for lev in range(1, N_levels):
-        sz = np.round(np.array(tmp1.shape, dtype=np.float32)*ratio)
+        sz = xp.round(xp.array(tmp1.shape, dtype=xp.float32)*ratio)
 
         tmp1 = resize(tmp1, (sz[0], sz[1]),
                     anti_aliasing=False, mode='symmetric')
@@ -56,6 +74,15 @@ def compute_image_pyram(Im1, Im2, ratio, N_levels, gaussian_sigma):
     P2: a list
         Pyramid of deformed images
     '''
+    
+    xp = cp.get_array_module(Im1, Im2)
+    if xp is np:
+        gaussian_filter = gaussian_filter_cpu
+        resize = resize_cpu
+    else:
+        gaussian_filter = gaussian_filter_gpu
+        resize = resize_gpu
+    
     P1 = []
     P2 = []
     tmp1 = Im1
@@ -65,7 +92,7 @@ def compute_image_pyram(Im1, Im2, ratio, N_levels, gaussian_sigma):
     for lev in range(1, N_levels):
         tmp1 = gaussian_filter(tmp1, gaussian_sigma)
         tmp2 = gaussian_filter(tmp2, gaussian_sigma)
-        sz = np.round(np.array(tmp1.shape, dtype=np.float32)*ratio)
+        sz = xp.round(xp.array(tmp1.shape, dtype=xp.float32)*ratio)
 
         tmp1 = resize(tmp1, (sz[0], sz[1]),
                       anti_aliasing=False, mode='symmetric')
@@ -94,6 +121,13 @@ def resample_flow_unequal(u, v, sz, ordre_inter):
     v: array
         The reshaped vertical field
     '''
+    
+    xp = cp.get_array_module(u, v)
+    if xp is np:
+        resize = resize_cpu
+    else:
+        resize = resize_gpu
+    
     osz = u.shape
     ratioU = sz[0]/osz[0]
     ratioV = sz[1]/osz[1]
@@ -135,6 +169,9 @@ def compute_flow(Im1, Im2, u, v, iter_gnc, gnc_pyram_levels, gnc_factor,
         parameter of the Lorentzian
 
     '''
+    
+    xp = cp.get_array_module(Im1, Im2)
+    
     P1, P2 = compute_image_pyram(
         Im1, Im2, 1/factor, pyram_levels, math.sqrt(spacing)/math.sqrt(2))
     P1_gnc, P2_gnc = compute_image_pyram(

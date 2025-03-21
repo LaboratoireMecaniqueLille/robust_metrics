@@ -1,10 +1,19 @@
 # coding: utf-8
 
-import cupy as np
+import numpy as np
+import cupy as cp
 import cv2
-from cupyx.scipy.ndimage import convolve as filter2
-from cupyx.scipy.ndimage import median_filter
-from cupyx.scipy.sparse.linalg import LinearOperator,cg
+try:
+    from cupyx.scipy.ndimage import convolve as filter2_gpu
+    from cupyx.scipy.ndimage import median_filter as median_filter_gpu
+    from cupyx.scipy.sparse.linalg import LinearOperator as LinearOperator_gpu
+    from cupyx.scipy.sparse.linalg import cg as cg_gpu
+except Exception:
+    filter2_gpu = median_filter_gpu = LinearOperator_gpu = cg_gpu = None
+from scipy.ndimage import convolve as filter2_cpu
+from scipy.ndimage import median_filter as median_filter_cpu
+from scipy.sparse.linalg import LinearOperator as LinearOperator_cpu
+from scipy.sparse.linalg import cg as cg_cpu
 
 from . import new_fo as fo
 
@@ -28,21 +37,40 @@ def warp_image2(Im, xx, yy, h):
         Iy: array
             Warped xy derivative
     '''
+    
+    xp = cp.get_array_module(Im, xx, yy, h)
+    if xp is np:
+        filter2 = filter2_cpu
+    else:
+        filter2 = filter2_gpu
+    
     # We add the flow estimated to the second image coordinates, remap them towards the ogriginal image  and finally  calculate the derivatives of the warped image
-    Im = np.array(Im, np.float32)
-    xx = np.array(xx, np.float32)
-    yy = np.array(yy, np.float32)
-    WImage = cv2.remap(Im.get(), xx.get(), yy.get(),
-                       interpolation=cv2.INTER_CUBIC)
+    Im = xp.array(Im, xp.float32)
+    xx = xp.array(xx, xp.float32)
+    yy = xp.array(yy, xp.float32)
+    if xp is cp:
+        WImage = cv2.remap(Im.get(), xx.get(), yy.get(),
+                           interpolation=cv2.INTER_CUBIC)
+    else:
+        WImage = cv2.remap(Im, xx, yy,
+                           interpolation=cv2.INTER_CUBIC)
 
     Ix = filter2(Im, h)
     Iy = filter2(Im, h.T)
 
-    Iy = cv2.remap(Iy.get(), xx.get(), yy.get(), interpolation=cv2.INTER_CUBIC)
-    Ix = cv2.remap(Ix.get(), xx.get(), yy.get(), interpolation=cv2.INTER_CUBIC)
-    Ix = np.array(Ix, dtype=np.float32)
-    Iy = np.array(Iy, dtype=np.float32)
-    WImage = np.array(WImage, dtype=np.float32)
+    if xp is cp:
+        Iy = cv2.remap(Iy.get(), xx.get(), yy.get(), 
+                       interpolation=cv2.INTER_CUBIC)
+        Ix = cv2.remap(Ix.get(), xx.get(), yy.get(), 
+                       interpolation=cv2.INTER_CUBIC)
+    else:
+        Iy = cv2.remap(Iy, xx, yy, 
+                       interpolation=cv2.INTER_CUBIC)
+        Ix = cv2.remap(Ix, xx, yy, 
+                       interpolation=cv2.INTER_CUBIC)
+    Ix = xp.array(Ix, dtype=xp.float32)
+    Iy = xp.array(Iy, dtype=xp.float32)
+    WImage = xp.array(WImage, dtype=xp.float32)
     return [WImage, Ix, Iy]
 
 
@@ -69,12 +97,19 @@ def derivatives(Image1, Image2, u, v, h, coef):
         It: array
             Temporal derivative            
     '''
+    
+    xp = cp.get_array_module(Image1, Image2, u, v, h)
+    if xp is np:
+        filter2 = filter2_cpu
+    else:
+        filter2 = filter2_gpu
+    
     N, M = Image1.shape
-    y = np.linspace(0, N-1, N)
-    x = np.linspace(0, M-1, M)
-    x, y = np.meshgrid(x, y)
-    Ix = np.zeros((N, M))
-    Iy = np.zeros((N, M))
+    y = xp.linspace(0, N-1, N)
+    x = xp.linspace(0, M-1, M)
+    x, y = xp.meshgrid(x, y)
+    Ix = xp.zeros((N, M))
+    Iy = xp.zeros((N, M))
     x = x+u
     y = y+v
     # Derivatives of the secnd image
@@ -86,10 +121,10 @@ def derivatives(Image1, Image2, u, v, h, coef):
     Ix = coef*I2x+(1-coef)*Ix           # Averaging
     Iy = coef*I2y+(1-coef)*Iy
 
-    It = np.nan_to_num(It)  # Remove Nan values on the derivatives
-    Ix = np.nan_to_num(Ix)
-    Iy = np.nan_to_num(Iy)
-    out_bound = np.where((y > N-1) | (y < 0) | (x > M-1) | (x < 0))
+    It = xp.nan_to_num(It)  # Remove Nan values on the derivatives
+    Ix = xp.nan_to_num(Ix)
+    Iy = xp.nan_to_num(Iy)
+    out_bound = xp.where((y > N-1) | (y < 0) | (x > M-1) | (x < 0))
     Ix[out_bound] = 0  # setting derivatives value on out of bound pixels to 0
     Iy[out_bound] = 0
     It[out_bound] = 0
@@ -133,6 +168,17 @@ def compute_flow_base(Image1, Image2, max_iter, max_linear_iter, u, v, alpha, lm
         v: array
             Initial values of the vertical displacement
     '''
+    
+    xp = cp.get_array_module(Image1, Image2, u, v, h, mask)
+    if xp is np:
+        median_filter = median_filter_cpu
+        LinearOperator = LinearOperator_cpu
+        cg = cg_cpu
+    else:
+        median_filter = median_filter_gpu
+        LinearOperator = LinearOperator_gpu
+        cg = cg_gpu
+    
     N, M = u.shape
     npixels = N*M
     if metric=='lorentz' and sigma ==None:
@@ -153,7 +199,10 @@ def compute_flow_base(Image1, Image2, max_iter, max_linear_iter, u, v, alpha, lm
                 u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric, alpha,mask,sigma))
             b = fo.flow_final_right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric, alpha,mask,sigma)
             #x, info = minres(L, b, tol=1e-5)
-            x, info = cg(L, b, tol=1e-1)
+            if xp is np:
+                x, info = cg(L, b, rtol=1e-1)
+            else:
+                x, info = cg(L, b, tol=1e-1)
             x[x > 1] = 1
             x[x < -1] = -1
             du = np.reshape(x[0:npixels], (N, M), 'F')
