@@ -9,12 +9,13 @@ This repository contains 3 files:
 ## Requirements
 
 This code is GPU-accelerated and requires the following Python modules for its operation:  
--CuPy
--Cucim
--Numpy
--OpenCV
--matplotlib 
--scipy
+- CuPy
+- Cucim
+- Numpy
+- OpenCV
+- matplotlib 
+- scipy
+- scikit-image
 
 The code was tested on an NVIDIA GPU with a computing capacity >3, CUDA toolkit version >11.2, and a Python version >3.9
 
