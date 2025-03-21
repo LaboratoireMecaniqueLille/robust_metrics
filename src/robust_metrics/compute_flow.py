@@ -1,15 +1,19 @@
+# coding: utf-8
+
 import math
 import cupy as np
 from cupyx.scipy.ndimage import  gaussian_filter
 from cucim.skimage.transform import resize
-import flow_operator as fo
-import rescale_img as ri
+
+from . import flow_operator as fo
+from . import rescale_img as ri
+
 
 def compute_image_pyram_mask(Im1, ratio, N_levels):
     '''
     Function to create a pyramid of masks
     Im1: array
-        The mask 
+        The mask
     ratio: float
         The ratio
     N_levels: int
@@ -32,13 +36,14 @@ def compute_image_pyram_mask(Im1, ratio, N_levels):
         P1.append(tmp1)
     return P1
 
+
 def compute_image_pyram(Im1, Im2, ratio, N_levels, gaussian_sigma):
     '''
     Function to create a pyramid of images
     Im1: array
-        The ref image 
+        The ref image
     Im2: array
-        The deformed image 
+        The deformed image
     ratio: float
         The ratio
     N_levels: int
@@ -47,9 +52,9 @@ def compute_image_pyram(Im1, Im2, ratio, N_levels, gaussian_sigma):
         Std of the gaussian filter
     Returns:
     P1: a list
-        Pyramid of reference images 
+        Pyramid of reference images
     P2: a list
-        Pyramid of deformed images 
+        Pyramid of deformed images
     '''
     P1 = []
     P2 = []
@@ -71,13 +76,14 @@ def compute_image_pyram(Im1, Im2, ratio, N_levels, gaussian_sigma):
         P2.append(tmp2)
     return [P1, P2]
 
+
 def resample_flow_unequal(u, v, sz, ordre_inter):
     '''
-    Function to create a reshape the displacement fields 
+    Function to create a reshape the displacement fields
     u: array
         The horizontal field
     v: array
-        The vertical field 
+        The vertical field
     sz: tuple
         The new size
     ordre_inter: int
@@ -86,7 +92,7 @@ def resample_flow_unequal(u, v, sz, ordre_inter):
     u: array
         The reshaped horizontal field
     v: array
-        The reshaped vertical field 
+        The reshaped vertical field
     '''
     osz = u.shape
     ratioU = sz[0]/osz[0]
@@ -94,6 +100,7 @@ def resample_flow_unequal(u, v, sz, ordre_inter):
     u = resize(u, sz, order=ordre_inter)*ratioU
     v = resize(v, sz, order=ordre_inter)*ratioV
     return u, v
+
 
 def compute_flow(Im1, Im2, u, v, iter_gnc, gnc_pyram_levels, gnc_factor,
                  gnc_spacing, pyram_levels, factor,
@@ -110,23 +117,23 @@ def compute_flow(Im1, Im2, u, v, iter_gnc, gnc_pyram_levels, gnc_factor,
     v: array
         The values of the vertical displacement
     h: array
-        derivation kernel 
+        derivation kernel
     coef: float
         Weight for the derivatives computation
     Returns:
     Ix: array
-        x-derivative      
+        x-derivative
     Iy: array
-        y-derivative     
+        y-derivative
     It: array
         Temporal derivative
     alpha: float
         The weight of the quadratic formulation in the GNC process
     mask: array
-        regularization mask 
-    sigma: float   
+        regularization mask
+    sigma: float
         parameter of the Lorentzian
- 
+
     '''
     P1, P2 = compute_image_pyram(
         Im1, Im2, 1/factor, pyram_levels, math.sqrt(spacing)/math.sqrt(2))

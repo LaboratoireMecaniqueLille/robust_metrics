@@ -1,10 +1,13 @@
+# coding: utf-8
+
 import cupy as np
 import cv2
 from cupyx.scipy.ndimage import convolve as filter2
 from cupyx.scipy.ndimage import median_filter
 from cupyx.scipy.sparse.linalg import LinearOperator,cg
-import new_fo as fo
-#import rescale_img as ri
+
+from . import new_fo as fo
+
 
 def warp_image2(Im, xx, yy, h):
     '''
@@ -41,6 +44,7 @@ def warp_image2(Im, xx, yy, h):
     Iy = np.array(Iy, dtype=np.float32)
     WImage = np.array(WImage, dtype=np.float32)
     return [WImage, Ix, Iy]
+
 
 def derivatives(Image1, Image2, u, v, h, coef):
     '''

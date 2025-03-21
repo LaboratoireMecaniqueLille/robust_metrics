@@ -1,6 +1,9 @@
+# coding: utf-8
+
 import numpy as np
 import cupy as cp
 from cupyx.scipy.ndimage import convolve1d
+
 
 def deriv_charbonnier_over_x(x, sigma, a):
     y = 2*a*(sigma**2 + x**2)**(a-1)
@@ -18,9 +21,11 @@ def deriv_lorentz_over_x(x, sigma):
     y = (2 *sigma)/ (sigma + x**2)**2'''
     return y
 
+
 deriv_charbonnier_over_x_vec_cp = cp.vectorize(deriv_charbonnier_over_x)
 deriv_quadra_over_x_vec_cp = cp.vectorize(deriv_quadra_over_x)
 deriv_lorentz_over_x_vec_cp = cp.vectorize(deriv_lorentz_over_x)
+
 
 def flow_matrix_base(u, v, du, dv, vector, N, M, lmbda, metric,mask,sigma):
     '''
@@ -91,6 +96,7 @@ def flow_matrix_base(u, v, du, dv, vector, N, M, lmbda, metric,mask,sigma):
     #print('lmbda',lmbda.shape)
     return res
 
+
 def flow_matrix(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric,mask,sigma):
     '''
     This function apply  the product marix vector of optical flow without storing the matrix 
@@ -151,6 +157,7 @@ def flow_matrix(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric,mask,sigma
     res[npixels:2*npixels] = res[npixels:2*npixels]+np.reshape(v0, (N*M,), 'F')
     return res
 
+
 def right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric,mask,sigma):
     '''
     This function create the right hand term for the system 
@@ -202,6 +209,7 @@ def right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric,mask,sigma):
     b[npixels:2*npixels] = b[npixels:2*npixels] - cp.reshape(pp_d*It*Iy, (npixels), 'F')
     return b
 
+
 def flow_final_right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric, alpha,mask,sigma):
     '''
     This function create the right hand term for the system 
@@ -247,6 +255,7 @@ def flow_final_right_hand_term(Ix, Iy, It, u, v, du, dv, lmbda, metric, alpha,ma
         b = alpha*bq+(1-alpha)*bn
 
     return b
+
 
 def flow_matrix_final(u, v, du, dv, vector, N, M, Ix, Iy, It, lmbda, metric, alpha,mask,sigma):
     '''

@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+
 import cupy as np
 import cv2
 import matplotlib.pyplot as plt
-from compute_flow import compute_flow
-import rescale_img as ri
+
+from .compute_flow import compute_flow
+from . import rescale_img as ri
 
 if __name__ == "__main__":
     # Cupy set_allocator
